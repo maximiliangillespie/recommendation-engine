@@ -6,7 +6,8 @@ import json
 import math
 import numpy as np
 import pandas as pd
-
+from flask import Flask
+from flask import request
 
 # CONSTANTS
 focus_user = 2
@@ -15,16 +16,7 @@ focus_user_similars_key = "user:" + str(focus_user) + ":similars"
 focus_user_suggestions_key = "user:" + str(focus_user) + ":suggestions"
 
 client = redis.Redis(host='localhost', port=6379, charset="utf-8", decode_responses=True)
-client.flushall()
-
-data = pd.read_csv("data.csv")
-
-def load_test_data():
-    for row in data.values:
-        user_id = row[0]
-        item_id = row[1]
-        rating = row[2]
-        load_score(rating, user_id, item_id)
+app = Flask(__name__)
 
 def load_score(rating, user_id, item_id):
     user_key = "user:" + str(user_id) + ":items"
@@ -126,12 +118,27 @@ def make_suggestion(candidate_items):
         # print(mean)
         client.zadd(focus_user_suggestions_key, {item_key: mean})
 
-    print("SUGGESTIONS (item | rating)")
+    suggestions_response = "SUGGESTIONS (item | rating)\n"
     suggestions = client.zrange(focus_user_suggestions_key, 0, -1)
     for item_key in suggestions:
         item_score = client.zscore(focus_user_suggestions_key, item_key)
-        print(str(item_key) + "  |  " + str(item_score))
+        suggestions_response += str(item_key) + "  |  " + str(item_score) + "\n"
 
+    return suggestions_response
+
+@app.route("/loadTestData", methods=["POST"])
+def load_test_data():
+    client.flushall()
+    data = pd.read_csv("data.csv")
+    for row in data.values:
+        user_id = row[0]
+        item_id = row[1]
+        rating = row[2]
+        load_score(rating, user_id, item_id)
+
+    return "loaded test data successfully!"
+
+@app.route("/suggested/<focus_user>", methods=["GET"])
 def get_suggested_items(focus_user):
     # STEP 1
     update_focus_user(focus_user)
@@ -142,9 +149,13 @@ def get_suggested_items(focus_user):
     # STEP 4
     candidate_items = calculate_candidate_items(candidate_user_keys)
     # STEP 5
-    make_suggestion(candidate_items)
+    response = make_suggestion(candidate_items)
+    
+    return response
 
 ############# MAIN METHOD #############
 
-load_test_data()
-get_suggested_items(2)
+# load_test_data()
+# get_suggested_items(2)
+
+app.run(debug = True)
