@@ -127,8 +127,7 @@ def make_suggestion(candidate_items):
     return suggestions_response
 
 @app.route("/loadTestData", methods=["POST"])
-def load_test_data():
-    client.flushall()
+def API_LOAD_TEST_DATA():
     data = pd.read_csv("data.csv")
     for row in data.values:
         user_id = row[0]
@@ -138,8 +137,19 @@ def load_test_data():
 
     return "loaded test data successfully!"
 
+@app.route("/ratings", methods=["POST"])
+def API_ADD_RATING():
+    rating = request.get_json()
+    load_score(rating['rating'], rating['user_id'], rating['item_id'])
+    return "Successfully loaded rating!"
+
+@app.route("/flushall", methods=["POST"])
+def API_FLUSH_DB():
+    client.flushall()
+    return "Successfully flushed your data :("
+
 @app.route("/suggested/<focus_user>", methods=["GET"])
-def get_suggested_items(focus_user):
+def API_GET_SUGGESTED_ITEMS(focus_user):
     # STEP 1
     update_focus_user(focus_user)
     # STEP 2
@@ -154,8 +164,5 @@ def get_suggested_items(focus_user):
     return response
 
 ############# MAIN METHOD #############
-
-# load_test_data()
-# get_suggested_items(2)
 
 app.run(debug = True)
