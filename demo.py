@@ -1,8 +1,6 @@
-from json.encoder import INFINITY
-from unicodedata import name
-from pip import main
 import redis 
 import json
+from json.encoder import INFINITY
 import math
 import numpy as np
 import pandas as pd
@@ -17,6 +15,8 @@ focus_user_suggestions_key = "user:" + str(focus_user) + ":suggestions"
 
 client = redis.Redis(host='localhost', port=6379, charset="utf-8", decode_responses=True)
 app = Flask(__name__)
+
+################### HELPER FUNCTIONS ###################
 
 def load_score(rating, user_id, item_id):
     user_key = "user:" + str(user_id) + ":items"
@@ -74,6 +74,7 @@ def calculate_candidate_similarity(candidate_users):
             rms = math.sqrt(mse)
             print("=> ITEM: " + str(intersecting_item))
             print("==> ROOT MEAN SQUARE: " + str(rms) + '\n')
+            # this would be where you would filter out some users based on RMS score
             client.zadd(focus_user_similars_key, {int(candidate_user_id): int(rms)})
         candidate_user_keys.append(candidate_user_key)
     print("--------------------")
@@ -119,12 +120,18 @@ def make_suggestion(candidate_items):
         client.zadd(focus_user_suggestions_key, {item_key: mean})
 
     suggestions_response = "SUGGESTIONS (item | rating)\n"
-    suggestions = client.zrange(focus_user_suggestions_key, 0, -1)
+    suggestions = client.zrevrange(focus_user_suggestions_key, 0, -1)
+    
     for item_key in suggestions:
         item_score = client.zscore(focus_user_suggestions_key, item_key)
         suggestions_response += str(item_key) + "  |  " + str(item_score) + "\n"
 
     return suggestions_response
+
+def check_user_exists(focus_user):
+    return client.exists(focus_user_key)
+
+################### API ROUTES ###################
 
 @app.route("/loadTestData", methods=["POST"])
 def API_LOAD_TEST_DATA():
@@ -152,16 +159,19 @@ def API_FLUSH_DB():
 def API_GET_SUGGESTED_ITEMS(focus_user):
     # STEP 1
     update_focus_user(focus_user)
-    # STEP 2
-    candidate_users = fetch_candidates()
-    # STEP 3
-    candidate_user_keys = calculate_candidate_similarity(candidate_users)
-    # STEP 4
-    candidate_items = calculate_candidate_items(candidate_user_keys)
-    # STEP 5
-    response = make_suggestion(candidate_items)
-    
-    return response
+
+    if (check_user_exists(focus_user)):
+        # STEP 2
+        candidate_users = fetch_candidates()
+        # STEP 3
+        candidate_user_keys = calculate_candidate_similarity(candidate_users)
+        # STEP 4
+        candidate_items = calculate_candidate_items(candidate_user_keys)
+        # STEP 5
+        response = make_suggestion(candidate_items)
+        return response
+    else:
+        return "ERROR: user does not exist"
 
 ############# MAIN METHOD #############
 
