@@ -53,6 +53,7 @@ def fetch_candidates():
 
 def calculate_candidate_similarity(candidate_users):
     candidate_user_keys = []
+    client.delete(focus_user_similars_key)
     print("--------------------")
     print("CANDIDATE USERS:")
     for candidate_user_id in candidate_users:
@@ -107,6 +108,7 @@ def calculate_candidate_items(candidate_user_keys):
     return items_we_want
 
 def make_suggestion(candidate_items):
+    client.delete(focus_user_suggestions_key)
     for item in candidate_items:
         item_key = "item:" + str(item) + ":scores"
         # intersect item sets, take only the item scores by using WEIGHTS
